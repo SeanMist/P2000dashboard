@@ -52,9 +52,9 @@
 <body>
     <div class="container">
         <h1>P2000 Live Meldingen Groningen</h1>
-        <p>Live overzicht van alarmeringen. Nieuwe meldingen verschijnen automatisch bovenaan.</p>
+        <p>Live overzicht van alarmeringen. Nieuwe meldingen verschijnen direct automatisch bovenaan.</p>
         
-        <div id="loading" class="loading">Verbinding maken en meldingen ophalen...</div>
+        <div id="loading" class="loading">Meldingen laden...</div>
         
         <table id="meldingenTable" style="display:none;">
             <thead>
@@ -65,7 +65,7 @@
                 </tr>
             </thead>
             <tbody id="meldingenBody">
-                <!-- Meldingen komen hier automatisch -->
+                <!-- Meldingen komen hier -->
             </tbody>
         </table>
     </div>
@@ -80,14 +80,12 @@
                 let meldingen = Array.isArray(data) ? data : (data.messages || data.data || []);
 
                 if (meldingen.length === 0) {
-                    return; // Houd de tabel intact als er even geen nieuwe array is
+                    return;
                 }
 
-                // Sorteer op tijd zodat de nieuwste melding altijd bovenaan komt te staan
+                // Sorteer direct zodat de nieuwste melding bovenaan staat
                 meldingen.sort((a, b) => {
-                    const tijdA = new Date(a.time || a.timestamp || 0);
-                    const tijdB = new Date(b.time || b.timestamp || 0);
-                    return tijdB - tijdA; 
+                    return new Date(b.time || 0) - new Date(a.time || 0);
                 });
 
                 tbody.innerHTML = '';
@@ -95,9 +93,9 @@
                 meldingen.forEach(m => {
                     const tr = document.createElement('tr');
                     
-                    const tijd = m.time || m.timestamp || m.date || 'Net binnen';
-                    const plaats = m.city || m.region || m.location || 'Groningen';
-                    const tekst = m.text || m.message || m.gordel || 'Geen omschrijving';
+                    const tijd = m.time || 'Net binnen';
+                    const plaats = m.city || 'Groningen';
+                    const tekst = m.text || 'Geen omschrijving';
 
                     tr.innerHTML = `
                         <td><strong>${tijd}</strong></td>
@@ -110,11 +108,11 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('meldingenTable').style.display = 'table';
             } catch (error) {
-                console.error('Fout bij laden van meldingen');
+                console.error('Fout bij ophalen');
             }
         }
 
-        // Direct laden bij openen en daarna elke 10 seconden automatisch verversen
+        // Direct laden en elke 10 seconden automatisch verversen
         laadMeldingen();
         setInterval(laadMeldingen, 10000);
     </script>
