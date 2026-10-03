@@ -13,7 +13,7 @@
             color: #333;
         }
         .container {
-            max-width: 1000px;
+            max-width: 1100px;
             margin: auto;
             background: white;
             padding: 25px;
@@ -39,6 +39,9 @@
             background-color: #f8f9fa;
             font-weight: bold;
         }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
         .loading {
             font-style: italic;
             color: #666;
@@ -49,9 +52,9 @@
 <body>
     <div class="container">
         <h1>P2000 Live Meldingen Groningen</h1>
-        <p>Live overzicht van de laatste alarmeringen. Ververst automatisch.</p>
+        <p>Live overzicht van alarmeringen. Nieuwe meldingen verschijnen automatisch bovenaan.</p>
         
-        <div id="loading" class="loading">Meldingen ophalen...</div>
+        <div id="loading" class="loading">Verbinding maken en meldingen ophalen...</div>
         
         <table id="meldingenTable" style="display:none;">
             <thead>
@@ -62,7 +65,7 @@
                 </tr>
             </thead>
             <tbody id="meldingenBody">
-                <!-- Meldingen komen hier -->
+                <!-- Meldingen komen hier automatisch -->
             </tbody>
         </table>
     </div>
@@ -74,35 +77,30 @@
                 const data = await response.json();
                 
                 const tbody = document.getElementById('meldingenBody');
-                tbody.innerHTML = '';
-                
-                // Flexibele check om de array met meldingen uit de API te halen
-                let meldingen = [];
-                if (Array.isArray(data)) {
-                    meldingen = data;
-                } else if (data.messages) {
-                    meldingen = data.messages;
-                } else if (data.data) {
-                    meldingen = data.data;
-                } else if (data.results) {
-                    meldingen = data.results;
-                }
+                let meldingen = Array.isArray(data) ? data : (data.messages || data.data || []);
 
                 if (meldingen.length === 0) {
-                    document.getElementById('loading').innerText = 'Geen actuele meldingen gevonden op dit moment.';
-                    return;
+                    return; // Houd de tabel intact als er even geen nieuwe array is
                 }
+
+                // Sorteer op tijd zodat de nieuwste melding altijd bovenaan komt te staan
+                meldingen.sort((a, b) => {
+                    const tijdA = new Date(a.time || a.timestamp || 0);
+                    const tijdB = new Date(b.time || b.timestamp || 0);
+                    return tijdB - tijdA; 
+                });
+
+                tbody.innerHTML = '';
 
                 meldingen.forEach(m => {
                     const tr = document.createElement('tr');
                     
-                    // Vangen van verschillende mogelijke veldnamen uit de API
                     const tijd = m.time || m.timestamp || m.date || 'Net binnen';
                     const plaats = m.city || m.region || m.location || 'Groningen';
-                    const tekst = m.text || m.message || m.gordel || JSON.stringify(m);
+                    const tekst = m.text || m.message || m.gordel || 'Geen omschrijving';
 
                     tr.innerHTML = `
-                        <td>${tijd}</td>
+                        <td><strong>${tijd}</strong></td>
                         <td>${plaats}</td>
                         <td>${tekst}</td>
                     `;
@@ -112,13 +110,13 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('meldingenTable').style.display = 'table';
             } catch (error) {
-                document.getElementById('loading').innerText = 'Fout bij het ophalen van de live data.';
+                console.error('Fout bij laden van meldingen');
             }
         }
 
-        // Direct laden bij openen en daarna elke 15 seconden automatisch vernieuwen voor nieuwe meldingen
+        // Direct laden bij openen en daarna elke 10 seconden automatisch verversen
         laadMeldingen();
-        setInterval(laadMeldingen, 15000);
+        setInterval(laadMeldingen, 10000);
     </script>
 </body>
 </html>
