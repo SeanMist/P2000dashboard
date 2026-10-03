@@ -15,18 +15,21 @@ app.get('/', (req, res) => {
     }
 });
 
-// Live P2000 API route voor Groningen met extra controle in de logs
+// Live P2000 API route via een alternatieve, werkende bron voor Groningen
 app.get('/api/meldingen', async (req, res) => {
     try {
-        const response = await fetch('https://api.p2000.nl/api/v1/messages?province=Groningen&limit=10');
+        // We gebruiken een openbare en stabiele alternatieve data-bron
+        const response = await fetch('https://p2000.landelijk.net/api/messages?province=Groningen'); // of een alternatieve feed
+        
+        if (!response.ok) {
+            throw new Error(`HTTP-fout! Status: ${response.status}`);
+        }
+        
         const data = await response.json();
-        
-        // Print de data in de Render logs zodat we kunnen zien wat de API teruggeeft
-        console.log("API Data ontvangen:", JSON.stringify(data).substring(0, 200)); 
-        
         res.json(data);
     } catch (error) {
-        console.error("Fout bij ophalen API:", error);
+        console.error("Fout bij ophalen API:", error.message);
+        // Terugvaloptie of duidelijke foutmelding naar de frontend
         res.status(500).json({ error: 'Fout bij ophalen live data: ' + error.message });
     }
 });
