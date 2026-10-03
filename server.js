@@ -14,58 +14,62 @@ app.get('/', (req, res) => {
     }
 });
 
-// API route die altijd een nette lijst met meldingen teruggeeft
+// Echte live P2000 feed ophalen voor Groningen met correcte browser-headers
 app.get('/api/meldingen', async (req, res) => {
     try {
-        // We proberen een openbare RSS-stream op te halen
-        const response = await fetch('https://www.alarmeringen.nl/feed/safety-region/groningen.rss');
-        
-        if (response.ok) {
-            const xmlText = await response.text();
-            const items = [];
-            const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-            let match;
-
-            while ((match = itemRegex.exec(xmlText)) !== null && items.length < 20) {
-                const itemContent = match[1];
-                const getTagContent = (tag) => {
-                    const tagMatch = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\/${tag}>`, 's').exec(itemContent);
-                    return tagMatch ? tagMatch[1].trim() : '';
-                };
-
-                const title = getTagContent('title');
-                const description = getTagContent('description');
-                const pubDate = getTagContent('pubDate');
-
-                items.push({
-                    time: pubDate ? new Date(pubDate).toLocaleTimeString() : new Date().toLocaleTimeString(),
-                    city: title || 'Groningen',
-                    text: description || title || 'Geen omschrijving'
-                });
+        const response = await fetch('https://www.alarmeringen.nl/feed/safety-region/groningen.rss', {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
+        });
 
-            if (items.length > 0) {
-                return res.json(items);
-            }
+        if (!response.ok) {
+            throw new Error(`HTTP-fout: ${response.status}`);
         }
 
-        throw new Error('Geen items in feed');
+        const xmlText = await response.text();
+        const items = [];
+        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+        let match;
 
-    } catch (error) {
-        // Als de externe feed even stilstaat, sturen we direct actuele statusmeldingen 
-        // zodat je scherm direct vult en de nieuwste bovenaan staat.
-        res.json([
-            {
-                time: new Date().toLocaleTimeString(),
-                city: 'Groningen (Regio)',
-                text: 'Dashboard is actief en luistert naar nieuwe P2000 alarmeringen in Groningen.'
-            },
-            {
-                time: new Date(Date.now() - 60000).toLocaleTimeString(),
-                city: 'Delfzijl',
-                text: 'Systeemstandby - Wachten op volgende melding...'
+        while ((match = itemRegex.exec(xmlText)) !== null) {
+            const itemContent = match[1];
+            
+            const getTagContent = (tag) => {
+                const tagMatch = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\/${tag}>`, 's').exec(itemContent);
+                return tagMatch ? tagMatch[1].trim() : '';
+            };
+
+            const title = getTagContent('title');
+            const description = getTagContent('description');
+            const pubDate = getTagContent('pubDate');
+
+            let formattedTime = 'Net binnen';
+            let rawTimestamp = Date.now();
+
+            if (pubDate) {
+                const d = new Date(pubDate);
+                if (!isNaN(d)) {
+                    rawTimestamp = d.getTime();
+                    formattedTime = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
             }
-        ]);
+
+            items.push({
+                time: formattedTime,
+                rawTime: rawTimestamp,
+                city: title || 'Groningen',
+                text: description || title || 'Geen omschrijving'
+            });
+        }
+
+        // Sorteer direct op tijd (nieuwste eerst) zodat de meest recente melding bovenaan staat
+        items.sort((a, b) => b.rawTime - a.rawTime);
+
+        res.json(items);
+    } catch (error) {
+        console.error("Fout bij ophalen echte feed:", error.message);
+        res.status(500).json({ error: 'Kon live feed niet laden' });
     }
 });
 
