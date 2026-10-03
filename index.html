@@ -1,23 +1,109 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const path = require('path');
-const app = express();
-const port = process.env.PORT || 3000;
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2000 Live Meldingen - Groningen</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d9534f;
+            margin-top: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .loading {
+            font-style: italic;
+            color: #666;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>P2000 Live Meldingen Groningen</h1>
+        <p>Dit dashboard haalt live de laatste meldingen op.</p>
+        
+        <div id="loading" class="loading">Meldingen ophalen...</div>
+        
+        <table id="meldingenTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>Tijd</th>
+                    <th>Plaats / Regio</th>
+                    <th>Melding</th>
+                </tr>
+            </thead>
+            <tbody id="meldingenBody">
+                <!-- Meldingen komen hier automatisch te staan -->
+            </tbody>
+        </table>
+    </div>
 
-// Zorg dat bestanden zoals index.html direct worden geladen
-app.use(express.static(__dirname));
+    <script>
+        async function laadMeldingen() {
+            try {
+                const response = await fetch('/api/meldingen');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('meldingenBody');
+                tbody.innerHTML = '';
+                
+                // Controleer of we data ontvangen hebben
+                const meldingen = Array.isArray(data) ? data : (data.messages || data.results || []);
 
-// Live P2000 API route voor Groningen
-app.get('/api/meldingen', async (req, res) => {
-    try {
-        const response = await fetch('https://api.p2000.nl/api/v1/messages?province=Groningen&limit=10');
-        const data = await response.json();
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ error: 'Fout bij ophalen live data' });
-    }
-});
+                if (meldingen.length === 0) {
+                    document.getElementById('loading').innerText = 'Geen actuele meldingen gevonden.';
+                    return;
+                }
 
-app.listen(port, () => {
-    console.log(`Live server draait op poort ${port}`);
-});
+                meldingen.forEach(m => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${m.time || m.timestamp || 'Net binnen'}</td>
+                        <td>${m.city || m.region || 'Groningen'}</td>
+                        <td>${m.text || m.message || 'Geen omschrijving'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('meldingenTable').style.display = 'table';
+            } catch (error) {
+                document.getElementById('loading').innerText = 'Fout bij het laden van de live meldingen.';
+            }
+        }
+
+        // Direct laden bij openen en daarna elke 30 seconden verversen
+        laadMeldingen();
+        setInterval(laadMeldingen, 30000);
+    </script>
+</body>
+</html>
