@@ -1,10 +1,18 @@
 const express = require('express');
 const fetch = require('node-fetch');
+const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(express.static('public'));
+// Geef aan waar de statische bestanden staan
+app.use(express.static(path.join(__dirname)));
 
+// Stuur index.html mee als de hoofdpagina wordt geopend
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Live P2000 API route voor Groningen
 app.get('/api/meldingen', async (req, res) => {
     try {
         const response = await fetch('https://api.p2000.nl/api/v1/messages?province=Groningen&limit=10');
