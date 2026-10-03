@@ -4,7 +4,6 @@ const fs = require('fs');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// De hoofdpagina direct inlezen en tonen
 app.get('/', (req, res) => {
     try {
         const filePath = path.join(__dirname, 'index.html');
@@ -15,36 +14,61 @@ app.get('/', (req, res) => {
     }
 });
 
-// Live P2000 API route met een veilige opvang (fallback) zodat de server nooit crasht
+// Live P2000 data ophalen via een stabiele openbare RSS-feed omgezet naar JSON
 app.get('/api/meldingen', async (req, res) => {
     try {
-        // Probeer een openbare feed op te halen
-        const response = await fetch('https://112radar.nl/api/v1/messages?province=Groningen', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0'
-            }
-        });
+        // We halen de openbare RSS-feed op voor Groningen
+        const response = await fetch('https://www.alarmeringen.nl/feed/safety-region/groningen.rss');
         
-        if (response.ok) {
-            const data = await response.json();
-            return res.json(data);
+        if (!response.ok) {
+            throw new Error('Kon RSS-feed niet ophalen');
         }
+
+        const xmlText = await response.text();
         
-        throw new Error('Externe API gaf geen OK status');
+        // Simpele en snelle omzetting van de RSS-items naar een net lijstje voor je dashboard
+        const items = [];
+        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+        let match;
+
+        while ((match = itemRegex.exec(xmlText)) !== null && items.length < 15) {
+            const itemContent = match[1];
+            
+            const getTagContent = (tag) => {
+                const tagMatch = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\/${tag}>`, 's').exec(itemContent);
+                return tagMatch ? tagMatch[1].trim() : '';
+            };
+
+            const title = getTagContent('title');
+            const description = getTagContent('description');
+            const pubDate = getTagContent('pubDate');
+
+            // Alleen meldingen tonen die iets met Groningen te maken hebben of alles uit de feed
+            items.push({
+                time: new Date(pubDate).toLocaleTimeString() || 'Onbekend',
+                city: title || 'Groningen',
+                text: description || title || 'Geen omschrijving'
+            });
+        }
+
+        if (items.length > 0) {
+            res.json(items);
+        } else {
+            // Fallback als de feed leeg is
+            res.json([{
+                time: new Date().toLocaleTimeString(),
+                city: 'Groningen',
+                text: 'Geen recente meldingen in de feed.'
+            }]);
+        }
+
     } catch (error) {
-        console.warn("Kon externe API niet bereiken, stuur veilige status:", error.message);
-        
-        // Terwijl de externe koppeling wordt geoptimaliseerd, sturen we een nette lege lijst 
-        // of een testmelding zodat je dashboard altijd blijft draaien en nooit "fetch failed" geeft.
-        res.json({
-            messages: [
-                {
-                    time: new Date().toLocaleTimeString(),
-                    city: 'Groningen (Systeem)',
-                    text: 'Verbinding met server is actief. Wachten op nieuwe live P2000 alarmeringen...'
-                }
-            ]
-        });
+        console.error("Fout bij ophalen P2000 feed:", error.message);
+        res.json([{
+            time: new Date().toLocaleTimeString(),
+            city: 'Systeem',
+            text: 'Wachten op nieuwe alarmeringen...'
+        }]);
     }
 });
 
