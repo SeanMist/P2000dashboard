@@ -49,7 +49,7 @@
 <body>
     <div class="container">
         <h1>P2000 Live Meldingen Groningen</h1>
-        <p>Dit dashboard haalt live de laatste meldingen op.</p>
+        <p>Live overzicht van de laatste alarmeringen. Ververst automatisch.</p>
         
         <div id="loading" class="loading">Meldingen ophalen...</div>
         
@@ -62,7 +62,7 @@
                 </tr>
             </thead>
             <tbody id="meldingenBody">
-                <!-- Meldingen komen hier automatisch te staan -->
+                <!-- Meldingen komen hier -->
             </tbody>
         </table>
     </div>
@@ -76,20 +76,35 @@
                 const tbody = document.getElementById('meldingenBody');
                 tbody.innerHTML = '';
                 
-                // Controleer of we data ontvangen hebben
-                const meldingen = Array.isArray(data) ? data : (data.messages || data.results || []);
+                // Flexibele check om de array met meldingen uit de API te halen
+                let meldingen = [];
+                if (Array.isArray(data)) {
+                    meldingen = data;
+                } else if (data.messages) {
+                    meldingen = data.messages;
+                } else if (data.data) {
+                    meldingen = data.data;
+                } else if (data.results) {
+                    meldingen = data.results;
+                }
 
                 if (meldingen.length === 0) {
-                    document.getElementById('loading').innerText = 'Geen actuele meldingen gevonden.';
+                    document.getElementById('loading').innerText = 'Geen actuele meldingen gevonden op dit moment.';
                     return;
                 }
 
                 meldingen.forEach(m => {
                     const tr = document.createElement('tr');
+                    
+                    // Vangen van verschillende mogelijke veldnamen uit de API
+                    const tijd = m.time || m.timestamp || m.date || 'Net binnen';
+                    const plaats = m.city || m.region || m.location || 'Groningen';
+                    const tekst = m.text || m.message || m.gordel || JSON.stringify(m);
+
                     tr.innerHTML = `
-                        <td>${m.time || m.timestamp || 'Net binnen'}</td>
-                        <td>${m.city || m.region || 'Groningen'}</td>
-                        <td>${m.text || m.message || 'Geen omschrijving'}</td>
+                        <td>${tijd}</td>
+                        <td>${plaats}</td>
+                        <td>${tekst}</td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -97,13 +112,13 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('meldingenTable').style.display = 'table';
             } catch (error) {
-                document.getElementById('loading').innerText = 'Fout bij het laden van de live meldingen.';
+                document.getElementById('loading').innerText = 'Fout bij het ophalen van de live data.';
             }
         }
 
-        // Direct laden bij openen en daarna elke 30 seconden verversen
+        // Direct laden bij openen en daarna elke 15 seconden automatisch vernieuwen voor nieuwe meldingen
         laadMeldingen();
-        setInterval(laadMeldingen, 30000);
+        setInterval(laadMeldingen, 15000);
     </script>
 </body>
 </html>
