@@ -4,10 +4,10 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Geef aan waar de statische bestanden staan
-app.use(express.static(path.join(__dirname)));
+// Statische bestanden laden
+app.use(express.static(__dirname));
 
-// Stuur index.html mee als de hoofdpagina wordt geopend
+// Expliciet de hoofdpagina koppelen aan index.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
