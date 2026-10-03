@@ -14,43 +14,60 @@ app.get('/', (req, res) => {
     }
 });
 
-// Live P2000 data ophalen via een toegankelijke openbare API voor Groningen
+// Live P2000 data ophalen via een slimme proxy om de serverblokkade te omzeilen
 app.get('/api/meldingen', async (req, res) => {
     try {
-        // We gebruiken een openbare API-endpoint dat clouddiensten niet blokkeert
-        const response = await fetch('https://p2000.opengeodata.nl/api/v1/messages?province=Groningen&limit=25', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) P2000Dashboard'
-            }
-        });
-
+        const targetUrl = 'https://www.alarmeringen.nl/feed/safety-region/groningen.rss';
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+        
+        const response = await fetch(proxyUrl);
         if (!response.ok) {
-            // Fallback naar een alternatieve openbare JSON-feed als de eerste even stoort
-            const altResponse = await fetch('https://api.112-meldingen.nl/v1/p2000?regio=groningen');
-            if (altResponse.ok) {
-                const altData = await altResponse.json();
-                return res.json(altData);
-            }
-            throw new Error(`HTTP-fout: ${response.status}`);
+            throw new Error(`Proxy fout: ${response.status}`);
         }
 
-        const data = await response.json();
-        
-        // Zorg dat we een nette array teruggeven
-        const meldingen = Array.isArray(data) ? data : (data.messages || data.data || []);
+        const xmlText = await response.text();
+        const items = [];
+        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+        let match;
 
-        res.json(meldingen);
-    } catch (error) {
-        console.error("Fout bij ophalen live feed:", error.message);
-        
-        // Stuur een nette lege lijst of status zodat de server operationeel blijft
-        res.json([
-            {
-                time: new Date().toLocaleTimeString(),
-                city: 'Groningen',
-                text: 'Verbinding met live bron opgebouwd. Wachten op alarmeringen...'
+        while ((match = itemRegex.exec(xmlText)) !== null && items.length < 30) {
+            const itemContent = match[1];
+            
+            const getTagContent = (tag) => {
+                const tagMatch = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\/${tag}>`, 's').exec(itemContent);
+                return tagMatch ? tagMatch[1].trim() : '';
+            };
+
+            const title = getTagContent('title');
+            const description = getTagContent('description');
+            const pubDate = getTagContent('pubDate');
+
+            let formattedTime = 'Net binnen';
+            let rawTimestamp = Date.now();
+
+            if (pubDate) {
+                const d = new Date(pubDate);
+                if (!isNaN(d)) {
+                    rawTimestamp = d.getTime();
+                    formattedTime = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
             }
-        ]);
+
+            items.push({
+                time: formattedTime,
+                rawTime: rawTimestamp,
+                city: title || 'Groningen',
+                text: description || title || 'Geen omschrijving'
+            });
+        }
+
+        // Sorteer direct op tijd (nieuwste bovenaan)
+        items.sort((a, b) => b.rawTime - a.rawTime);
+
+        res.json(items);
+    } catch (error) {
+        console.error("Fout bij ophalen via proxy:", error.message);
+        res.json([]);
     }
 });
 
