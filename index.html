@@ -15,18 +15,18 @@
     <header class="bg-slate-900 border-b border-slate-800 p-6 sticky top-0 z-50 flex justify-between items-center shadow-lg">
         <div class="flex items-center gap-4">
             <div class="bg-red-600 text-white p-3.5 rounded-2xl shadow-lg shadow-red-600/30">
-                <i class="fa-solid fa-triangle-exclamation text-2xl animate-pulse"></i>
+                <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
             </div>
             <div>
                 <h1 class="text-2xl font-black text-white flex items-center gap-3 tracking-wide">
                     P2000 GRONINGEN - LIVE
                     <span class="inline-block w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping"></span>
                 </h1>
-                <p class="text-sm text-slate-400">Meest recente 3 meldingen (Live monitor)</p>
+                <p class="text-sm text-slate-400">Meest recente 3 meldingen (Real-time monitor)</p>
             </div>
         </div>
         <div id="status-tijd" class="text-sm font-mono bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 text-slate-300">
-            Verbinden...
+            Bezig met laden...
         </div>
     </header>
 
@@ -42,17 +42,16 @@
 
     <!-- Footer -->
     <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-sm text-slate-500">
-        Automatische live verversing elke 5 seconden • 100% Gratis via GitHub
+        Ververst automatisch elke 15 seconden • Geoptimaliseerd om vanaf afstand te lezen
     </footer>
 
-    <!-- JavaScript voor snelle live updates -->
+    <!-- JavaScript -->
     <script>
         async function laadLiveData() {
             try {
-                // We gebruiken de rechtstreekse openbare datastroom
+                // We gebruiken een rechtstreekse feed die gekoppeld is aan de actieve alarmeringen-stroom
                 const feedUrl = 'https://www.alarmeringen.nl/groep/brandweer/groningen/rss/';
-                const url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feedUrl) + '&_=' + new Date().getTime();
-                
+                const url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feedUrl);
                 const response = await fetch(url);
                 const data = await response.json();
 
@@ -60,8 +59,8 @@
                 if (data.status === 'ok' && data.items.length > 0) {
                     items = data.items;
                 } else {
-                    // Fallback naar de algemene Groningen feed als backup
-                    const backupUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('http://feeds.feedburner.com/p2000-regio-groningen') + '&_=' + new Date().getTime();
+                    // Fallback naar de algemene Groningen feed als de brandweer-feed even afwijkt
+                    const backupUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('http://feeds.feedburner.com/p2000-regio-groningen');
                     const res2 = await fetch(backupUrl);
                     const data2 = await res2.json();
                     items = data2.items || [];
@@ -86,21 +85,21 @@
 
                         let badge = '<span class="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-sm font-bold px-3 py-1 rounded-lg">P2000</span>';
                         let icoon = 'fa-truck-medical text-amber-400';
-                        let borderKleur = 'border-slate-800';
+                        let borderKleur = 'border-slate-800 hover:border-slate-700';
                         
                         const l = tekst.toLowerCase();
                         if (l.includes('brandweer') || l.includes('prio 1') || l.includes('brand') || l.includes('dier')) {
                             badge = '<span class="bg-red-500/20 text-red-300 border border-red-500/30 text-sm font-bold px-3 py-1 rounded-lg">BRANDWEER</span>';
                             icoon = 'fa-fire-flame-curved text-red-500';
-                            borderKleur = 'border-red-500/50 bg-red-950/20';
+                            borderKleur = 'border-red-500/40 bg-red-950/10';
                         } else if (l.includes('ambulance') || l.includes('a1') || l.includes('a2')) {
                             badge = '<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-sm font-bold px-3 py-1 rounded-lg">AMBULANCE</span>';
                             icoon = 'fa-truck-medical text-emerald-400';
-                            borderKleur = 'border-emerald-500/50 bg-emerald-950/20';
+                            borderKleur = 'border-emerald-500/40 bg-emerald-950/10';
                         } else if (l.includes('politie')) {
                             badge = '<span class="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-sm font-bold px-3 py-1 rounded-lg">POLITIE</span>';
                             icoon = 'fa-shield-halved text-blue-400';
-                            borderKleur = 'border-blue-500/50 bg-blue-950/20';
+                            borderKleur = 'border-blue-500/40 bg-blue-950/10';
                         }
 
                         // Grote weergave voor vanaf de bank
@@ -122,7 +121,7 @@
                         `;
                     });
 
-                    document.getElementById('status-tijd').innerHTML = `<i class="fa-solid fa-circle text-emerald-400 text-xs mr-2 animate-pulse"></i>Live (Check: ${new Date().toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`;
+                    document.getElementById('status-tijd').innerHTML = `<i class="fa-solid fa-circle text-emerald-400 text-xs mr-2"></i>Laatste update: ${new Date().toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` ;
                 }
             } catch (error) {
                 console.error('Fout bij laden:', error);
@@ -132,8 +131,8 @@
         // Direct laden bij openen
         laadLiveData();
 
-        // Automatisch verversen elke 5 seconden
-        setInterval(laadLiveData, 5000);
+        // Automatisch verversen elke 15 seconden
+        setInterval(laadLiveData, 15000);
     </script>
 </body>
 </html>
