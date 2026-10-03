@@ -1,13 +1,10 @@
 {
-  "name": "p2000-live",
+  "name": "p2000dashboard",
   "version": "1.0.0",
-  "description": "Echte live P2000 server",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "node-fetch": "^2.6.9"
+    "express": "^4.18.2"
   }
 }
