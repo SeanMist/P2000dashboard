@@ -6,9 +6,8 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-let opgeslagenMeldingen = [
-    { time: 'Net gestart', rawTime: Date.now(), city: 'Systeem', text: 'Wachten op eerste update van thuisserver...' }
-];
+// Start met een lege lijst; zodra je pc start vult dit zich direct met echte meldingen
+let opgeslagenMeldingen = [];
 
 app.get('/', (req, res) => {
     try {
@@ -25,18 +24,16 @@ app.get('/api/meldingen', (req, res) => {
 });
 
 app.post('/api/update', (req, res) => {
-    // Pak de data uit req.body, ongeacht hoe het binnenkomt
+    // Accepteer de binnengekomen lijst met echte meldingen
     const data = req.body.meldingen || req.body;
     
     if (Array.isArray(data) && data.length > 0) {
         opgeslagenMeldingen = data;
-        console.log(`[Update] Succes! ${data.length} meldingen opgeslagen.`);
+        console.log(`[Update] ${data.length} echte meldingen opgeslagen.`);
         return res.json({ status: 'success', received: data.length });
     }
     
-    // Als het geen array is, slaan we het toch op als lijstje om een 400-fout te voorkomen
-    opgeslagenMeldingen = [{ time: new Date().toLocaleTimeString(), rawTime: Date.now(), city: 'Update', text: JSON.stringify(req.body) }];
-    return res.json({ status: 'forced_success' });
+    return res.status(400).json({ status: 'error', message: 'Geen geldige data' });
 });
 
 app.listen(port, () => {
