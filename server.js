@@ -1,76 +1,66 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const app = express();
-const port = process.env.PORT || 3000;
+import time
+import urllib.request
+import json
+import re
 
-app.get('/', (req, res) => {
-    try {
-        const filePath = path.join(__dirname, 'index.html');
-        const html = fs.readFileSync(filePath, 'utf8');
-        res.send(html);
-    } catch (error) {
-        res.status(500).send('Kan index.html niet inlezen: ' + error.message);
-    }
-});
+# Dit adres stuurt de data naar jouw online website op Render
+RENDER_URL = "https://p2000dashboard.onrender.com/api/update"
 
-// Live P2000 data ophalen via een slimme proxy om de serverblokkade te omzeilen
-app.get('/api/meldingen', async (req, res) => {
-    try {
-        const targetUrl = 'https://www.alarmeringen.nl/feed/safety-region/groningen.rss';
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+def haal_en_stuur():
+    try:
+        # Haal lokaal (zonder blokkades) de echte feed op
+        url = "https://www.alarmeringen.nl/feed/safety-region/groningen.rss"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         
-        const response = await fetch(proxyUrl);
-        if (!response.ok) {
-            throw new Error(`Proxy fout: ${response.status}`);
-        }
-
-        const xmlText = await response.text();
-        const items = [];
-        const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-        let match;
-
-        while ((match = itemRegex.exec(xmlText)) !== null && items.length < 30) {
-            const itemContent = match[1];
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            xml_data = resp.read().decode('utf-8')
+        
+        items = []
+        item_matches = re.findall(r'<item>(.*?)</item>', xml_data, re.DOTALL)
+        
+        for item_content in item_matches[:30]:
+            def get_tag(tag):
+                m = re.search(rf'<{tag}>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{tag}>', item_content, re.DOTALL)
+                return m.group(1).strip() if m else ''
             
-            const getTagContent = (tag) => {
-                const tagMatch = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\/${tag}>`, 's').exec(itemContent);
-                return tagMatch ? tagMatch[1].trim() : '';
-            };
+            title = get_tag('title')
+            description = get_tag('description')
+            pub_date = get_tag('pubDate')
+            
+            raw_t = time.time()
+            formatted_t = 'Net binnen'
+            if pub_date:
+                try:
+                    parsed_t = time.strptime(pub_date[5:25], "%d %b %Y %H:%M:%S")
+                    raw_t = time.mktime(parsed_t)
+                    formatted_t = time.strftime("%H:%M:%S", parsed_t)
+                except:
+                    pass
 
-            const title = getTagContent('title');
-            const description = getTagContent('description');
-            const pubDate = getTagContent('pubDate');
+            items.append({
+                'time': formatted_t,
+                'rawTime': raw_t,
+                'city': title or 'Groningen',
+                'text': description or title or 'Geen omschrijving'
+            })
+        
+        # Stuur de echte meldingen door naar jouw website op Render
+        data_bytes = json.dumps(items).encode('utf-8')
+        post_req = urllib.request.Request(
+            RENDER_URL, 
+            data=data_bytes, 
+            headers={'Content-Type': 'application/json'}, 
+            method='POST'
+        )
+        
+        with urllib.request.urlopen(post_req, timeout=10) as post_resp:
+            print(f"[{time.strftime('%H:%M:%S')}] {len(items)} echte meldingen doorgestuurd naar Render!")
 
-            let formattedTime = 'Net binnen';
-            let rawTimestamp = Date.now();
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] Fout bij verzenden: {e}")
 
-            if (pubDate) {
-                const d = new Date(pubDate);
-                if (!isNaN(d)) {
-                    rawTimestamp = d.getTime();
-                    formattedTime = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                }
-            }
-
-            items.push({
-                time: formattedTime,
-                rawTime: rawTimestamp,
-                city: title || 'Groningen',
-                text: description || title || 'Geen omschrijving'
-            });
-        }
-
-        // Sorteer direct op tijd (nieuwste bovenaan)
-        items.sort((a, b) => b.rawTime - a.rawTime);
-
-        res.json(items);
-    } catch (error) {
-        console.error("Fout bij ophalen via proxy:", error.message);
-        res.json([]);
-    }
-});
-
-app.listen(port, () => {
-    console.log(`Live server draait op poort ${port}`);
-});
+if __name__ == '__main__':
+    print("P2000 Pusher is gestart...")
+    while True:
+        haal_en_stuur()
+        time.sleep(15) # Elke 15 seconden controleren en doorsturen
