@@ -1,66 +1,39 @@
-import time
-import urllib.request
-import json
-import re
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const app = express();
+const port = process.env.PORT || 3000;
 
-# Dit adres stuurt de data naar jouw online website op Render
-RENDER_URL = "https://p2000dashboard.onrender.com/api/update"
+app.use(express.json({ limit: '1mb' }));
 
-def haal_en_stuur():
-    try:
-        # Haal lokaal (zonder blokkades) de echte feed op
-        url = "https://www.alarmeringen.nl/feed/safety-region/groningen.rss"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            xml_data = resp.read().decode('utf-8')
-        
-        items = []
-        item_matches = re.findall(r'<item>(.*?)</item>', xml_data, re.DOTALL)
-        
-        for item_content in item_matches[:30]:
-            def get_tag(tag):
-                m = re.search(rf'<{tag}>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{tag}>', item_content, re.DOTALL)
-                return m.group(1).strip() if m else ''
-            
-            title = get_tag('title')
-            description = get_tag('description')
-            pub_date = get_tag('pubDate')
-            
-            raw_t = time.time()
-            formatted_t = 'Net binnen'
-            if pub_date:
-                try:
-                    parsed_t = time.strptime(pub_date[5:25], "%d %b %Y %H:%M:%S")
-                    raw_t = time.mktime(parsed_t)
-                    formatted_t = time.strftime("%H:%M:%S", parsed_t)
-                except:
-                    pass
+let opgeslagenMeldingen = [
+    { time: 'Net gestart', rawTime: Date.now(), city: 'Systeem', text: 'Wachten op eerste update van thuisserver...' }
+];
 
-            items.append({
-                'time': formatted_t,
-                'rawTime': raw_t,
-                'city': title or 'Groningen',
-                'text': description or title or 'Geen omschrijving'
-            })
-        
-        # Stuur de echte meldingen door naar jouw website op Render
-        data_bytes = json.dumps(items).encode('utf-8')
-        post_req = urllib.request.Request(
-            RENDER_URL, 
-            data=data_bytes, 
-            headers={'Content-Type': 'application/json'}, 
-            method='POST'
-        )
-        
-        with urllib.request.urlopen(post_req, timeout=10) as post_resp:
-            print(f"[{time.strftime('%H:%M:%S')}] {len(items)} echte meldingen doorgestuurd naar Render!")
+app.get('/', (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'index.html');
+        const html = fs.readFileSync(filePath, 'utf8');
+        res.send(html);
+    } catch (error) {
+        res.status(500).send('Kan index.html niet inlezen: ' + error.message);
+    }
+});
 
-    except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] Fout bij verzenden: {e}")
+app.get('/api/meldingen', (req, res) => {
+    res.json(opgeslagenMeldingen);
+});
 
-if __name__ == '__main__':
-    print("P2000 Pusher is gestart...")
-    while True:
-        haal_en_stuur()
-        time.sleep(15) # Elke 15 seconden controleren en doorsturen
+app.post('/api/update', (req, res) => {
+    const nieuweMeldingen = req.body;
+    if (Array.isArray(nieuweMeldingen) && nieuweMeldingen.length > 0) {
+        opgeslagenMeldingen = nieuweMeldingen;
+        console.log(`[Update] ${nieuweMeldingen.length} meldingen ontvangen van thuisserver.`);
+        return res.json({ status: 'success' });
+    }
+    res.status(400).json({ status: 'error', message: 'Geen geldige data' });
+});
+
+app.listen(port, () => {
+    console.log(`Live server draait op poort ${port}`);
+});
