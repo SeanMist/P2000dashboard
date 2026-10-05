@@ -6,7 +6,6 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// Start met een lege lijst; zodra je pc start vult dit zich direct met echte meldingen
 let opgeslagenMeldingen = [];
 
 app.get('/', (req, res) => {
@@ -24,16 +23,16 @@ app.get('/api/meldingen', (req, res) => {
 });
 
 app.post('/api/update', (req, res) => {
-    // Accepteer de binnengekomen lijst met echte meldingen
-    const data = req.body.meldingen || req.body;
-    
-    if (Array.isArray(data) && data.length > 0) {
-        opgeslagenMeldingen = data;
-        console.log(`[Update] ${data.length} echte meldingen opgeslagen.`);
-        return res.json({ status: 'success', received: data.length });
+    // Accepteer direct alles wat binnenkomt, ongeacht de opmaak
+    if (req.body) {
+        if (Array.isArray(req.body)) {
+            opgeslagenMeldingen = req.body;
+        } else if (req.body.meldingen && Array.isArray(req.body.meldingen)) {
+            opgeslagenMeldingen = req.body.meldingen;
+        }
     }
-    
-    return res.status(400).json({ status: 'error', message: 'Geen geldige data' });
+    console.log(`[Update] Ontvangen! Aantal meldingen: ${opgeslagenMeldingen.length}`);
+    return res.json({ status: 'success', count: opgeslagenMeldingen.length });
 });
 
 app.listen(port, () => {
