@@ -6,6 +6,7 @@ const cors = require('cors');
 
 const app = express();
 
+// Startpagina melding zodat Render laat zien dat de server online is
 app.get('/', (req, res) => {
   res.send('P2000 Dashboard Server is online en draait!');
 });
@@ -36,7 +37,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
-// --- 1. Ontvangst-route voor je Python pusher.py script ---
+// --- 1. Ontvangst-route voor je Python pusher.py script (beveiligd met API-key) ---
 app.post('/api/update', checkApiKey, (req, res) => {
   const meldingen = req.body;
   if (!Array.isArray(meldingen) || meldingen.length === 0) {
@@ -55,8 +56,8 @@ app.post('/api/update', checkApiKey, (req, res) => {
   });
 });
 
-// --- 2. Ophaal-route voor jouw GitHub dashboard ---
-app.get('/api/groningen', checkApiKey, (req, res) => {
+// --- 2. Ophaal-route voor jouw GitHub dashboard (open zodat je website direct de data laadt) ---
+app.get('/api/groningen', (req, res) => {
   pool.query('SELECT * FROM `groningen` ORDER BY timestamp DESC LIMIT 30', (error, results) => {
     if (error) {
       console.error('Error fetching groningen data:', error);
