@@ -1,97 +1,68 @@
+require('dotenv').config();
+
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const Parser = require('rss-parser');
+const mysql = require('mysql');
+const cors = require('cors');
 
 const app = express();
-const parser = new Parser();
-const port = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '10mb' }));
+// CORS volledig openzetten voor jouw GitHub dashboard
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'X-API-Key']
+}));
 
-let opgeslagenMeldingen = [];
+app.use(express.json());
 
-app.get('/', (req, res) => {
-    try {
-        const filePath = path.join(__dirname, 'index.html');
-        const html = fs.readFileSync(filePath, 'utf8');
-        res.send(html);
-    } catch (error) {
-        res.status(500).send('Kan index.html niet inlezen: ' + error.message);
+const checkApiKey = (req, res, next) => {
+  const apiKey = req.get('X-API-Key');
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    return res.status(401).json({ error: 'Invalid or missing API key' });
+  }
+  next();
+};
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'P2000',
+  timezone: 'Europe/Amsterdam',
+  connectionLimit: 10,
+});
+
+// --- 1. Ontvangst-route voor je Python pusher.py script ---
+app.post('/api/update', checkApiKey, (req, res) => {
+  const meldingen = req.body;
+  if (!Array.isArray(meldingen) || meldingen.length === 0) {
+    return res.status(400).json({ error: 'Geen geldige data ontvangen' });
+  }
+
+  let verwerkt = 0;
+  meldingen.forEach((m) => {
+    const query = 'INSERT INTO `groningen` (timestamp, plaats, tekst) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE tekst=tekst';
+    pool.query(query, [new Date(), m.city || 'Eemsdelta', m.text || ''], (err) => {
+      verwerkt++;
+      if (verwerkt === meldingen.length) {
+        res.json({ success: true, message: `${meldingen.length} meldingen verwerkt in database.` });
+      }
+    });
+  });
+});
+
+// --- 2. Ophaal-route voor jouw GitHub dashboard ---
+app.get('/api/groningen', checkApiKey, (req, res) => {
+  pool.query('SELECT * FROM `groningen` ORDER BY timestamp DESC LIMIT 30', (error, results) => {
+    if (error) {
+      console.error('Error fetching groningen data:', error);
+      return res.status(500).json({ error: 'Internal server error' });
     }
+    res.json(results);
+  });
 });
 
-app.get('/api/meldingen', (req, res) => {
-    res.json(opgeslagenMeldingen);
-});
-
-// === ENDPOINT VOOR P2000 (ESP32) ===
-app.get('/api/p2000', (req, res) => {
-    if (opgeslagenMeldingen && opgeslagenMeldingen.length > 0) {
-        const meestRecente = opgeslagenMeldingen[0];
-        return res.json({
-            tijd: meestRecente.tijd || meestRecente.time || "Zojuist",
-            melding: meestRecente.melding || meestRecente.tekst || meestRecente.text || meestRecente.message || "Geen melding tekst"
-        });
-    } else {
-        return res.json({
-            tijd: "--:--",
-            melding: "Geen actuele 112 meldingen"
-        });
-    }
-});
-
-// === ENDPOINT VOOR LIVE VERKEER (A7, N33, N46) ===
-app.get('/api/verkeer', async (req, res) => {
-    try {
-        // Haal de officiële ANWB verkeers-RSS-feed op
-        const feed = await parser.parseURL('https://www.anwb.nl/rss/verkeersinformatie.xml');
-        
-        const relevanteWegen = ['A7', 'N33', 'N46'];
-        let gevondenVertragingen = [];
-
-        if (feed.items && feed.items.length > 0) {
-            feed.items.forEach(item => {
-                const tekst = (item.title + ' ' + item.contentSnippet).toUpperCase();
-                
-                // Controleer of de melding over de A7, N33 of N46 gaat
-                relevanteWegen.forEach(weg => {
-                    if (tekst.includes(weg)) {
-                        gevondenVertragingen.push(`${item.title}: ${item.contentSnippet}`);
-                    }
-                });
-            });
-        }
-
-        if (gevondenVertragingen.length > 0) {
-            return res.json({
-                status: gevondenVertragingen.join(' | ')
-            });
-        } else {
-            return res.json({
-                status: "A7 / N33 / N46: Geen bijzonderheden of vertragingen."
-            });
-        }
-    } catch (error) {
-        console.error("[Verkeer Error]:", error.message);
-        return res.json({
-            status: "A7 / N33 / N46: Vrij doorrijden (geen meldingen)."
-        });
-    }
-});
-
-app.post('/api/update', (req, res) => {
-    if (req.body) {
-        if (Array.isArray(req.body)) {
-            opgeslagenMeldingen = req.body;
-        } else if (req.body.meldingen && Array.isArray(req.body.meldingen)) {
-            opgeslagenMeldingen = req.body.meldingen;
-        }
-    }
-    console.log(`[Update] Ontvangen! Aantal meldingen: ${opgeslagenMeldingen.length}`);
-    return res.json({ status: 'success', count: opgeslagenMeldingen.length });
-});
-
-app.listen(port, () => {
-    console.log(`Live server draait op poort ${port}`);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
