@@ -6,6 +6,10 @@ const cors = require('cors');
 
 const app = express();
 
+app.get('/', (req, res) => {
+  res.send('P2000 Dashboard Server is online en draait!');
+});
+
 // CORS volledig openzetten voor jouw GitHub dashboard
 app.use(cors({
   origin: '*',
