@@ -208,11 +208,11 @@
       </div>
     </section>
 
-    <!-- Slide 3: P2000 Groningen -->
+    <!-- Slide 3: P2000 Heel Groningen -->
     <section id="slide-p2000-groningen" class="slide">
       <div class="card" style="justify-content: flex-start;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #30363d; padding-bottom: 10px; margin-bottom: 6px;">
-          <h2 style="font-size: 2.2rem;">🚒 P2000 Live Meldingen Regio Groningen</h2>
+          <h2 style="font-size: 2.2rem;">🚒 P2000 Live Meldingen Hele Provincie Groningen</h2>
           <span class="badge bg-prio1">GRONINGEN</span>
         </div>
         <div id="p2000-groningen-container" class="p2000-container">
@@ -246,7 +246,7 @@
     <section id="slide-radar" class="slide">
       <div class="card" style="padding: 16px; justify-content: space-between;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #30363d; padding-bottom: 10px;">
-          <h2 style="font-size: 2.2rem;">🛰️ Live Satelliet & Buienradar Eemsdelta</h2>
+          <h2 style="font-size: 2.2rem;">🛰️️ Live Satelliet & Buienradar Eemsdelta</h2>
           <span class="badge bg-rain">Live Radar</span>
         </div>
         <div style="flex: 1; border-radius: 14px; overflow: hidden; margin-top: 12px; border: 2px solid #30363d; background: #0d1117;">
@@ -370,7 +370,7 @@
       }, 110);
     }
 
-    // Veilige ophaalfunctie die direct praat met jouw p2000dashboard server op Render
+    // Ophalen van live meldingen voor zowel Eemsdelta als heel Groningen vanaf de Render-server
     async function fetchDatabaseP2000() {
       try {
         const res = await fetch('https://p2000dashboard.onrender.com/api/groningen', {
@@ -380,17 +380,19 @@
         });
         const data = await res.json();
         
-        // Eemsdelta slide vullen
+        if (!Array.isArray(data)) return;
+
+        // --- 1. Vult de Eemsdelta slide (Strikte filter op lokale regio) ---
         const containerEems = document.getElementById('p2000-eemsdelta-container');
-        if (containerEems && Array.isArray(data) && data.length > 0) {
+        if (containerEems) {
           containerEems.innerHTML = '';
           const eemsdeltaItems = data.filter(item => {
             const tekst = ((item.plaats || '') + " " + (item.tekst || '')).toLowerCase();
-            return tekst.includes('eemsdelta') || tekst.includes('appingedam') || tekst.includes('delfzijl') || tekst.includes('loppersum');
+            return tekst.includes('eemsdelta') || tekst.includes('appingedam') || tekst.includes('delfzijl') || tekst.includes('loppersum') || tekst.includes('termunten') || tekst.includes('spijk') || tekst.includes('bierum');
           });
           
-          const itemsToShown = eemsdeltaItems.length > 0 ? eemsdeltaItems : data;
-          for (let i = 0; i < Math.min(itemsToShown.length, 3); i++) {
+          const itemsToShown = eemsdeltaItems.length > 0 ? eemsdeltaItems : data.slice(0, 3);
+          for (let i = 0; i < Math.min(itemsToShown.length, 5); i++) {
             const item = itemsToShown[i];
             const title = item.tekst || "Geen omschrijving";
             const plaats = item.plaats || "Eemsdelta";
@@ -414,11 +416,11 @@
           }
         }
 
-        // Groningen slide vullen
+        // --- 2. Vult de Groningen slide (ALLE meldingen uit de database) ---
         const containerGroningen = document.getElementById('p2000-groningen-container');
-        if (containerGroningen && Array.isArray(data) && data.length > 0) {
+        if (containerGroningen) {
           containerGroningen.innerHTML = '';
-          for (let i = 0; i < Math.min(data.length, 5); i++) {
+          for (let i = 0; i < Math.min(data.length, 6); i++) {
             const item = data[i];
             const title = item.tekst || "Geen omschrijving";
             const plaats = item.plaats || "Groningen";
