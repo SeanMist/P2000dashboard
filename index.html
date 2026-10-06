@@ -246,7 +246,7 @@
     <section id="slide-radar" class="slide">
       <div class="card" style="padding: 16px; justify-content: space-between;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #30363d; padding-bottom: 10px;">
-          <h2 style="font-size: 2.2rem;">🛰️️ Live Satelliet & Buienradar Eemsdelta</h2>
+          <h2 style="font-size: 2.2rem;">🛰 Live Satelliet & Buienradar Eemsdelta</h2>
           <span class="badge bg-rain">Live Radar</span>
         </div>
         <div style="flex: 1; border-radius: 14px; overflow: hidden; margin-top: 12px; border: 2px solid #30363d; background: #0d1117;">
@@ -370,12 +370,12 @@
       }, 110);
     }
 
-    // Ophalen van live meldingen voor zowel Eemsdelta als heel Groningen vanaf de Render-server
+    // Ophalen van live meldingen vanaf de Render-server met de juiste API-sleutel
     async function fetchDatabaseP2000() {
       try {
         const res = await fetch('https://p2000dashboard.onrender.com/api/groningen', {
           headers: {
-            'X-API-Key': 'b53be50c54b5114ae72540a608c857be'
+            'X-API-Key': process.env.API_KEY || 'b53be50c54b5114ae72540a608c857be'
           }
         });
         const data = await res.json();
