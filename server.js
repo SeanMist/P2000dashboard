@@ -22,6 +22,22 @@ app.get('/api/meldingen', (req, res) => {
     res.json(opgeslagenMeldingen);
 });
 
+// === NIEUW: Endpoint speciaal voor de ESP32 ===
+app.get('/api/p2000', (req, res) => {
+    if (opgeslagenMeldingen && opgeslagenMeldingen.length > 0) {
+        const meestRecente = opgeslagenMeldingen[0]; // Pak de eerste (nieuwste) melding
+        return res.json({
+            tijd: meestRecente.tijd || meestRecente.time || "Zojuist",
+            melding: meestRecente.melding || meestRecente.tekst || meestRecente.text || meestRecente.message || "Geen melding tekst"
+        });
+    } else {
+        return res.json({
+            tijd: "--:--",
+            melding: "Geen actuele 112 meldingen"
+        });
+    }
+});
+
 app.post('/api/update', (req, res) => {
     // Accepteer direct alles wat binnenkomt, ongeacht de opmaak
     if (req.body) {
